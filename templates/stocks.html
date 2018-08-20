@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Акции компании - {{ symbol }}
+{% endblock %}
+
+
+{% block body %}
+    <div class="hrefs">
+        <a href="./insider/">Insider</a>
+        <a href="./analytics/">Analytics</a>
+        <a href="./delta?type=open&value=60">Delta 60 open</a>
+        <a href="./delta?type=high&value=60">Delta 60 high</a>
+        <a href="./delta?type=low&value=60">Delta 60 low</a>
+        <a href="./delta?type=close&value=60">Delta 60 close</a>
+        <a href="..">Вернутся назад</a>
+    </div>
+    <table class="table table-sm">
+        <thead>
+        <tr>
+            <th scope="col">#</th>
+            <th scope="col">Date</th>
+            <th scope="col">Open</th>
+            <th scope="col">High</th>
+            <th scope="col">Low</th>
+            <th scope="col">Close</th>
+            <th scope="col">Volume</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for stock in stocks %}
+            <tr>
+                <td class="table_tr_counter" scope="row"></td>
+                <td>{{ stock.date }}</td>
+                <td>{{ stock.open }}</td>
+                <td>{{ stock.high }}</td>
+                <td>{{ stock.low }}</td>
+                <td>{{ stock.close }}</td>
+                <td>{{ stock.volume }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

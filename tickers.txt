@@ -1,0 +1,4 @@
+GOOG
+CVX
+AAPL
+PIH

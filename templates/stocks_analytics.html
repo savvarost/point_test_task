@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Аналитика акции компании - {{ symbol }}
+{% endblock %}
+
+
+{% block body %}
+    <style>
+        span {
+            padding-left: 5px;
+        }
+
+        span.up {
+            color: green;
+        }
+
+        span.down {
+            color: red;
+        }
+    </style>
+    <div class="hrefs">
+        <a href="..">Вернутся назад</a>
+    </div>
+    <table class="table table-sm">
+        <thead>
+        <tr>
+            <th scope="col">#</th>
+            <th scope="col">Date</th>
+            <th scope="col">Open</th>
+            <th scope="col">High</th>
+            <th scope="col">Low</th>
+            <th scope="col">Close</th>
+            <th scope="col">Volume</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for stock in stocks %}
+            <tr>
+                <td class="table_tr_counter" scope="row"></td>
+                <td>{{ stock.date }}</td>
+                <td>{{ stock.open }}
+                    <span class="{% if stock.open_r >= 0 %}up{% else %}down{% endif %}">{{ stock.open_r|floatformat }}</span>
+                </td>
+                <td>{{ stock.high }}
+                    <span class="{% if stock.high_r >= 0 %}up{% else %}down{% endif %}">{{ stock.high_r|floatformat }}</span>
+                </td>
+                <td>{{ stock.low }}
+                    <span class="{% if stock.low_r >= 0 %}up{% else %}down{% endif %}">{{ stock.low_r|floatformat }}</span>
+                </td>
+                <td>{{ stock.close }}
+                    <span class="{% if stock.close_r >= 0 %}up{% else %}down{% endif %}">{{ stock.close_r|floatformat }}</span>
+                </td>
+                <td>{{ stock.volume }}
+                    <span class="{% if stock.volume_r >= 0 %}up{% else %}down{% endif %}">{{ stock.volume_r|floatformat }}</span>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

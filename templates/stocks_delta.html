@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Аналитика акции компании - {{ symbol }}
+{% endblock %}
+
+
+{% block body %}
+    <style>
+        span {
+            padding-left: 5px;
+        }
+
+        span.up {
+            color: green;
+        }
+
+        span.down {
+            color: red;
+        }
+    </style>
+    <div class="hrefs">
+        <a href="..">Вернутся назад</a>
+    </div>
+    <table class="table table-sm">
+        <thead>
+        <tr>
+            <th scope="col">#</th>
+            <th scope="col">Date</th>
+            <th scope="col">Open</th>
+            <th scope="col">High</th>
+            <th scope="col">Low</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for row in stocks_delta %}
+            <tr>
+                <td class="table_tr_counter" scope="row"></td>
+                {% for td in row %}
+                    <td>{{ td }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
