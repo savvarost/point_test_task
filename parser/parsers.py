@@ -6,6 +6,8 @@ import bs4
 
 # Регулярка поиска даты по формату 06/17/2017
 _RE_DATE = re.compile('\d{2}/\d{2}/\d{4}')
+# Регулярка поиска даты по формату 00:00
+_RE_TIME = re.compile('\d{2}:\d{2}')
 
 
 class UnknownFormat(Exception):
@@ -18,40 +20,42 @@ class NotFoundData(Exception):
     pass
 
 
-def str2datetime(s):
+def str2date(string):
     """
     Преобразование строки в дату
 
     Args:
-        s(str): Строка с датой
+        string(str): Строка с датой
 
     Returns:
         datetime.datetime
     """
-    if not s:
+    if not string:
         return None
 
-    if _RE_DATE.search(s):
-        return datetime.datetime.strptime(s, '%m/%d/%Y')
+    if _RE_DATE.search(string):
+        return datetime.datetime.strptime(string, '%m/%d/%Y').date()
+    elif _RE_TIME.search(string):
+        return datetime.datetime.now().date()
 
-    raise UnknownFormat('Неизвестный формат даты {}'.format(s))
+    raise UnknownFormat('Неизвестный формат даты {}'.format(string))
 
 
-def str2float(s):
+def str2float(string):
     """
     Преобразование строки в float
 
     Args:
-        s(str): Строка с числовым значением
+        string(str): Строка с числовым значением
 
     Returns:
         float
     """
-    if not s:
+    if not string:
         return None
 
-    s = s.replace(',', '')
-    return float(s)
+    string = string.replace(',', '')
+    return float(string)
 
 
 class BaseParser:
@@ -87,7 +91,7 @@ class ParserStock(BaseParser):
                 continue
 
             stocks.append({
-                'date': str2datetime(tds[0]),
+                'date': str2date(tds[0]),
                 'open': str2float(tds[1]),
                 'high': str2float(tds[2]),
                 'low': str2float(tds[3]),
@@ -132,7 +136,7 @@ class ParserTrade(BaseParser):
                     'name': insider_element.text.strip(),
                 },
                 'relation': tds[0],
-                'date': str2datetime(tds[1]),
+                'date': str2date(tds[1]),
                 'type_transaction': tds[2],
                 'owner_type': tds[3],
                 'shares_traded': str2float(tds[4]),
@@ -145,7 +149,13 @@ class ParserTrade(BaseParser):
         if industry_bs:
             company_industry = industry_bs.find_next_sibling('a').text.strip()
 
+        next_page_url = None
+        next_page_bs = self._page_bs.select_one('a#quotes_content_left_lb_NextPage')
+        if next_page_bs:
+            next_page_url = next_page_bs.get('href')
+
         return {
+            'next_page_url': next_page_url,
             'trades': trades,
             'company_industry': company_industry,
         }

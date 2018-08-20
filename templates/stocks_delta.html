@@ -22,25 +22,52 @@
     <div class="hrefs">
         <a href="..">Вернутся назад</a>
     </div>
-    <table class="table table-sm">
-        <thead>
-        <tr>
-            <th scope="col">#</th>
-            <th scope="col">Date</th>
-            <th scope="col">Open</th>
-            <th scope="col">High</th>
-            <th scope="col">Low</th>
-        </tr>
-        </thead>
-        <tbody>
-        {% for row in stocks_delta %}
-            <tr>
-                <td class="table_tr_counter" scope="row"></td>
-                {% for td in row %}
-                    <td>{{ td }}</td>
+    <div class="row justify-content-start">
+        <div class="col-6">
+            <h2>Up</h2>
+            <table class="table table-sm">
+                <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Delta</th>
+                    <th scope="col">Date from</th>
+                    <th scope="col">Date to</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in delta_up %}
+                    <tr>
+                        <td class="table_tr_counter" scope="row"></td>
+                        {% for td in row %}
+                            <td>{{ td }}</td>
+                        {% endfor %}
+                    </tr>
                 {% endfor %}
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+                </tbody>
+            </table>
+        </div>
+        <div class="col-6">
+            <h2>Down</h2>
+            <table class="table table-sm">
+                <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Delta</th>
+                    <th scope="col">Date from</th>
+                    <th scope="col">Date to</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in delta_down %}
+                    <tr>
+                        <td class="table_tr_counter" scope="row"></td>
+                        {% for td in row %}
+                            <td>{{ td }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 {% endblock %}

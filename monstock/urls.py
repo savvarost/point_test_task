@@ -12,6 +12,7 @@ urlpatterns = [
     re_path('^api/(?P<symbol>[^/]+)/insider/$', api.trades),
     re_path('^api/(?P<symbol>[^/]+)/analytics/$', api.analytics),
     re_path('^api/(?P<symbol>[^/]+)/insider/(?P<insider>[^/]+)/$', api.trades),
+    re_path('^api/(?P<symbol>[^/]+)/delta/$', api.delta),
 
     re_path('^(?P<symbol>[^/]+)/$', views.stock_company),
     re_path('^(?P<symbol>[^/]+)/insider/$', views.trades_company),

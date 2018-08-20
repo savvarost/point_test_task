@@ -71,7 +71,7 @@ def stock_company_analytics(request, symbol=None):
 
 
 def stock_company_delta(request, symbol=None):
-    """Сформировать страницу с разностью
+    """Сформировать страницу с данными о минимальных периодах, когда указанная цена изменилась более чем на N
 
     Args:
         request(django.core.handlers.wsgi.WSGIRequest)
@@ -87,18 +87,11 @@ def stock_company_delta(request, symbol=None):
         deltas = models.Stock.get_delta(
             symbol=symbol, column_type=column_type, max_change_price=max_change_price)
     except Exception as ex:
-        # todo переделать, сделал на скорую руку
         return HttpResponseBadRequest(ex)
-
-    sort_delta_key = list(deltas.keys())
-    sort_delta_key.sort()
 
     content = {
         'symbol': symbol,
-        'stocks_delta': [
-            (i, j['date_from'], j['date_to'], j['value'])
-            for i in sort_delta_key
-            for j in deltas[i]
-        ]
+        'delta_up': deltas['up'],
+        'delta_down': deltas['down'],
     }
     return render(request, 'stocks_delta.html', content)

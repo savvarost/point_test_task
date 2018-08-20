@@ -1,64 +1,141 @@
-import requests
-
-from parser.parsers import ParserStock, ParserTrade
-from stock import models
-
-_URL_STOCK = 'https://www.nasdaq.com/symbol/{}/historical'
-_URL_TRADE = 'https://www.nasdaq.com/symbol/{}/insider-trades'
-
-
-def load_stock(company_symbol):
-    response = requests.get(_URL_STOCK.format(company_symbol))
-    ps = ParserStock(response.text)
-    d = ps.get_data()
-    d.update({'company_symbol': company_symbol})
-    models.Stock.store_stocks(d)
-
-
-def load_stocks(company_symbols):
-    load_stock('goog')
-    pass
-
-
-def load_trade(company_symbol):
-    response = requests.get(_URL_TRADE.format(company_symbol))
-    ps = ParserTrade(response.text)
-    d = ps.get_data()
-    d.update({'company_symbol': company_symbol})
-    models.Trade.store_trades(d)
-
-
-def load_trades():
-    load_trade('goog')
-
-
+"""Модуль загрузки данных и сохранения данных"""
+import os
+import re
 import threading
+from functools import wraps
 from queue import Queue
 
+import requests
 
-class Treading(threading.Thread):
+from parser import parsers
+from stock import models
 
-    def __init__(self, queue):
-        """Инициализация потока"""
+# Шаблон ссылки до акции компаниц
+_URL_STOCK = 'https://www.nasdaq.com/symbol/{}/historical'
+# Шаблон ссылки до торгов компании
+_URL_TRADE = 'https://www.nasdaq.com/symbol/{}/insider-trades'
+# Путь до корня проекта
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def retry(count=5):
+    """Повторное выполнение метода при исключении NotFoundData
+
+    Args:
+        count(int): Количество попыток
+
+    Returns:
+        function
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for _ in range(count):
+                try:
+                    func(*args, **kwargs)
+                except parsers.NotFoundData:
+                    continue
+
+                break
+
+        return wrapper
+
+    return decorator
+
+
+class Worker(threading.Thread):
+    """Многопоточный класс работы с очередью"""
+
+    def __init__(self, tasks):
+        """
+        Args:
+            tasks(Queue): Очередь задач
+        """
         threading.Thread.__init__(self)
-        self.queue = queue
+        self.tasks = tasks
+        self.daemon = True
+        self.start()
 
     def run(self):
-        """Запуск потока"""
         while True:
-            # Получаем url из очереди
-            url = self.queue.get()
+            kwargs = self.tasks.get()
+            try:
+                self._run_task(**kwargs)
+            except Exception as ex:
+                # An exception happened in this thread
+                print(ex)
+            finally:
+                # Mark this task as done, whether an exception happened or not
+                self.tasks.task_done()
 
-            # Скачиваем файл
-            # self.download_file(url)
+    @retry(count=5)
+    def _run_task(self, task_type, **kwargs):
+        print(self.name, kwargs)
+        if task_type == 'stock':
+            self._stock(**kwargs)
+        elif task_type == 'trade':
+            self._trade(**kwargs)
+        else:
+            raise Exception('Тип не определен')
 
-            # Отправляем сигнал о том, что задача завершена
-            self.queue.task_done()
+    def _trade(self, symbol, url):
+        """Загрузка, парсинг и сохранение торгов
 
-    # def download_file(self, task):
-    #     """Скачиваем файл"""
-    #     if task
-    #         load_trade(symbol)
+        Args:
+            symbol(str): Сокращенное название компании
+            url(str): Ссылка на источник
+        """
+        response = requests.get(url)
+        parser = parsers.ParserTrade(response.text)
+        data = parser.get_data()
+        # Если есть следующая страница ставим ее в очередь
+        next_url = data.pop('next_page_url')
+        if next_url:
+            page_number = int(re.search('(\d+)$', next_url).group(1))
+            if page_number < 11:
+                self.tasks.put({
+                    'task_type': 'trade',
+                    'symbol': symbol,
+                    'url': next_url,
+                })
+        data.update({'company_symbol': symbol})
+        models.Trade.store_trades(data)
+
+    def _stock(self, symbol, url):
+        """Загрузка, парсинг и сохранение акций
+
+        Args:
+            symbol(str): Сокращенное название компании
+            url(str): Ссылка на источник
+        """
+        response = requests.get(url)
+        parser = parsers.ParserStock(response.text)
+        data = parser.get_data()
+        data.update({'company_symbol': symbol})
+        models.Stock.store_stocks(data)
+
+
+class ThreadPool:
+    """ Пул потоков для выполнения задач из очереди"""
+
+    def __init__(self, num_threads):
+        self.tasks = Queue()
+        for _ in range(num_threads):
+            Worker(self.tasks)
+
+    def add_task(self, **kwargs):
+        """Добавить задачу в очередь"""
+        self.tasks.put(kwargs)
+
+    def add_tasks(self, tasks):
+        """Добавить список задач в очередь"""
+        for task in tasks:
+            self.add_task(**task)
+
+    def wait_completion(self):
+        """Дождаться завершения всех задач в очереди"""
+        self.tasks.join()
 
 
 def read_symbol_company():
@@ -67,43 +144,49 @@ def read_symbol_company():
     Returns:
         list of str
     """
-    with open('./tickets.txt', 'r') as file:
+    with open(os.path.join(_ROOT_DIR, 'tickers.txt'), 'r') as file:
         text = file.read()
-        symbols = text.strip()
+        symbols = text.split()
         return [i for i in symbols if i]
 
 
-def get_tasks():
-    symbols = read_symbol_company()
+def get_tasks(symbol=None):
+    """Генерируем скисок задач, на выполнение
+
+    Args:
+        symbol(str): Сокращенное название компании
+
+    Returns:
+        list of dict
+    """
+    if symbol:
+        symbols = [symbol]
+    else:
+        symbols = read_symbol_company()
     result = []
-    for symbol in symbols:
+    for symbol_ in symbols:
         result.append({
-            'type': 'stock',
-            'url': _URL_STOCK.format(symbol),
+            'task_type': 'stock',
+            'symbol': symbol_,
+            'url': _URL_STOCK.format(symbol_),
         })
 
-        for i in range(1,11):
-            result.append({
-                'type': 'trade',
-                'url': _URL_TRADE.format(symbol),
-            })
+        result.append({
+            'task_type': 'trade',
+            'symbol': symbol_,
+            'url': _URL_TRADE.format(symbol_),
+        })
+
+    return result
 
 
+def start(count_tread=10, symbol=None):
+    """Основной метод запуска загрузки данных в многопоточном режиме
 
-def start(count_tread=10):
+    Args:
+        count_tread(int): Количество потоков
+        symbol(str): Количество потоков
     """
-    Запускаем программу
-    """
-    queue = Queue()
-
-    # Запускаем потом и очередь
-    for i in range(5):
-        t = Treading(queue)
-        t.setDaemon(True)
-        t.start()
-
-    # for symbol in get_tasks():
-    #     queue.put(url)
-
-    # Ждем завершения работы очереди
-    queue.join()
+    thread_pool = ThreadPool(count_tread)
+    thread_pool.add_tasks(get_tasks(symbol))
+    thread_pool.wait_completion()

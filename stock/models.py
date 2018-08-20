@@ -94,13 +94,17 @@ class Stock(BaseModels):
     date = models.DateField(null=False)
     # Цена открытия аукциона
     open = models.FloatField()
-    # "High" is the highest sales price the stock has achieved during the regular trading hours, the intra-day high.
+    # "High" is the highest sales price the stock has achieved during the regular trading hours,
+    #  the intra-day high.
     high = models.FloatField()
-    # "Low" is the lowest sales price the stock has fallen to during the regular trading hours, the intra-day low.
+    # "Low" is the lowest sales price the stock has fallen to during the regular trading hours,
+    #  the intra-day low.
     low = models.FloatField()
-    # "Close" is the period at the end of the trading session. Sometimes used to refer to closing price.
+    # "Close" is the period at the end of the trading session. Sometimes used to refer
+    # to closing price.
     close = models.FloatField()
-    # "Volume" The closing daily official volumes represented graphically for each trading day.
+    # "Volume" The closing daily official volumes represented graphically for each
+    # trading day.
     volume = models.IntegerField()
     # Компания
     company = models.ForeignKey(Company, on_delete=models.CASCADE, null=False)
@@ -124,9 +128,9 @@ class Stock(BaseModels):
                     'stocks': list,
                 }
         """
-        ind = Industry.get_with_save(name=data.get('company_industry'))
+        ind = Industry.get_with_save(name=data.get('company_industry').lower())
         comp = Company.get_with_save(
-            symbol=data.get('company_symbol'),
+            symbol=data.get('company_symbol').lower(),
             industry=ind
         )
 
@@ -138,7 +142,12 @@ class Stock(BaseModels):
             )
 
             # Ищем в БД акции по компании и дате, если получается найти то будем делать обновление
-            st_s = list(Stock.objects.filter(company=comp, date=stock_date.get('date')).values_list('id')[0:1])
+            st_s = list(
+                Stock.objects.filter(
+                    company=comp,
+                    date=stock_date.get('date')
+                ).values_list('id')[0:1]
+            )
             if st_s:
                 kw['force_update'] = True
                 stock.id = st_s[0][0]
@@ -195,8 +204,7 @@ class Stock(BaseModels):
   100 - 100*lag("open") OVER "w" / "open" AS "open_r",
   100 - 100*lag("high") OVER "w" / "high" AS "high_r",
   100 - 100*lag("low") OVER "w" / "low" AS "low_r",
-  100 - 100*lag("close") OVER "w" / "close" AS "close_r",
-  100 - 100*lag("volume") OVER "w"::FLOAT / "volume"::FLOAT AS "valume_r"
+  100 - 100*lag("close") OVER "w" / "close" AS "close_r"
 FROM "stock_stock" s
   LEFT JOIN "stock_company" c on s."company_id" = c."id"
 WHERE c."symbol" = %s
@@ -234,44 +242,41 @@ ORDER BY "date" DESC;"""
             raise Exception(
                 'Указанный тип {} отсутствует в списке разрешенных {}'.format(column_type, cls._ACCESS_COL_DELTA))
 
-        query_raw = """SELECT
-  a."date",
-  abs(a."{column_type}_r") as open_abs
-FROM (
-       SELECT
-         *,
-         lag("{column_type}") OVER "w" - "{column_type}" AS "{column_type}_r"
-       FROM "stock_stock" s LEFT JOIN stock_company c on s.company_id = c.id
-       WHERE c."symbol" = %s
-       WINDOW "w" AS (ORDER BY "date" )
-     ) as a""".format(column_type=column_type)
+        query_raw = """with d as (
+  SELECT MAX(result.date1) as date_from, date_to FROM (
+    SELECT
+      ss1.date as date1,
+      ss1.{column_type} as {column_type},
+      MIN(ss2.date) as date_to
+    FROM stock_stock ss1
+      INNER JOIN stock_stock ss2
+        ON (ss2.{column_type} -ss1.{column_type} {sing}%s AND ss1.date < ss2.date AND ss1.company_id = ss2.company_id)
+      LEFT JOIN stock_company c on ss1.company_id = c.id
+    WHERE c.symbol = %s
+    GROUP BY ss1.id
+    ORDER BY ss1.date
+  ) as result
+   GROUP BY date_to
+)
+SELECT date_to-date_from AS delta, * FROM d ORDER BY delta;"""
 
         with connection.cursor() as cursor:
-            cursor.execute(query_raw, (symbol,))
-            rows = cursor.fetchall()
+            cursor.execute(query_raw.format(
+                column_type=column_type,
+                sing='>= '
+            ), (max_change_price, symbol,))
+            rows_up = cursor.fetchall()
 
-        store_date = None
-        curr_counter = 0
-        result = collections.defaultdict(list)
-        for date, value in rows:
-            if store_date is None:
-                store_date = date
+            cursor.execute(query_raw.format(
+                column_type=column_type,
+                sing='<= -'
+            ), (max_change_price, symbol,))
+            rows_down = cursor.fetchall()
 
-            if value:
-                curr_counter += value
-
-            if curr_counter > max_change_price:
-                delta = date - store_date
-                result[delta].append({
-                    'date_from': store_date,
-                    'date_to': date,
-                    'value': curr_counter,
-                })
-
-                store_date = None
-                curr_counter = 0
-
-        return result
+        return {
+            'up': rows_up,
+            'down': rows_down,
+        }
 
 
 class Insider(BaseModels):
@@ -310,7 +315,7 @@ class Trade(BaseModels):
     # Дата сделки
     date = models.DateField(null=False)
     # последняя цена
-    last_price = models.FloatField()
+    last_price = models.FloatField(null=True)
     #
     shares_traded = models.IntegerField()
     #

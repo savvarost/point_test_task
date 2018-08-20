@@ -1,4 +1,4 @@
-"""Модуль обработки запросов к апи"""
+"""Модуль обработки запросов апи"""
 import datetime
 
 from django.http.response import JsonResponse, HttpResponseBadRequest
@@ -129,7 +129,7 @@ def analytics(request, symbol):
 
 
 def delta(request, symbol):
-    """
+    """Получение списка с данными о минимальных периодах, когда указанная цена изменилась более чем на N
 
     Args:
         request(django.core.handlers.wsgi.WSGIRequest)
@@ -138,4 +138,21 @@ def delta(request, symbol):
     Returns:
         django.http.response.JsonResponse
     """
-    pass
+    data = request.GET
+    if request.method == 'POST':
+        data = request.POST
+    try:
+        max_change_price = float(data.get('value'))
+        column_type = data.get('type')
+
+        deltas = models.Stock.get_delta(
+            symbol=symbol, column_type=column_type, max_change_price=max_change_price)
+    except Exception as ex:
+        return HttpResponseBadRequest(ex)
+
+    return JsonResponse(
+        {
+            'symbol': symbol,
+            'deltas': deltas,
+        }
+    )
